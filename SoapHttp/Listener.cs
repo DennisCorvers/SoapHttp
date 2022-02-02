@@ -57,21 +57,21 @@ namespace SoapHttp
 
                     try
                     {
-                        var response = await ParseRequest(context.Request, token);
+                        var response = await ParseRequest(context.Request);
                     }
                     catch (Exception e)
                     {
                         Console.WriteLine($"Error in handling request: {e}");
                         // Return fault.
-                        RespondWithEmpty(context.Response, 400);
+                        RespondWithException(context.Response, e);
                         continue;
                     }
 
                     // Respond
-                    RespondWithEmpty(context.Response, 200);
+                    RespondWithEmpty(context.Response);
                 }
             }
-            catch(HttpListenerException)
+            catch (HttpListenerException)
             {
                 // Occurs when the HttpListener is closed while it's waiting for a message.
             }
@@ -79,16 +79,9 @@ namespace SoapHttp
             Console.WriteLine("Listener stopped listening.");
         }
 
-        private static void RespondWithEmpty(HttpListenerResponse response, int statusCode)
-        {
-            response.Headers.Clear();
-            response.SendChunked = false;
-            response.StatusCode = statusCode;
-            response.ContentLength64 = 0;
-            response.Close();
-        }
 
-        private async Task<object?> ParseRequest(HttpListenerRequest request, CancellationToken token)
+
+        private async Task<object?> ParseRequest(HttpListenerRequest request)
         {
             // Validate request?
             var targetMethod = request.Headers.Get("soapAction");
@@ -96,13 +89,13 @@ namespace SoapHttp
                 throw new InvalidOperationException("Soap message does not contain a soapAction.");
 
             if (!m_typeResolver.TryResolveType(targetMethod, out WcfMethodInfo? methodInfo))
-                throw new InvalidOperationException($"Could not resolve the SoapAction {targetMethod}.");
+                throw new InvalidOperationException($"Could not resolve the SoapAction: {targetMethod}.");
 
             if (methodInfo.TryGetParameterType(out Type? type))
             {
                 // Invoke with deserialized object.
-                var xmlStream = XmlReader.Create(request.InputStream, new XmlReaderSettings() { Async = true });
-                var obj = await SoapSerializer.Deserialize(xmlStream, type) ?? throw new InvalidOperationException("Could not deserialize Soap message.");
+                var obj = await SoapSerializer.Deserialize(request.InputStream, type)
+                    ?? throw new InvalidOperationException("Could not deserialize Soap message.");
 
                 return methodInfo.InvokeSoapMethod(obj, m_service);
             }
@@ -110,6 +103,29 @@ namespace SoapHttp
             {
                 return methodInfo.InvokeSoapMethod(m_service);
             }
+        }
+
+        private static void RespondWithException(HttpListenerResponse response, Exception exception)
+        {
+            response.Headers.Clear();
+            response.SendChunked = false;
+            response.StatusCode = 400;
+            response.ContentLength64 = 0;
+            response.Close();
+        }
+
+        private static void RespondWithObject(HttpListenerResponse response, object responseObject)
+        {
+
+        }
+
+        private static void RespondWithEmpty(HttpListenerResponse response, HttpStatusCode statusCode = HttpStatusCode.OK)
+        {
+            response.Headers.Clear();
+            response.SendChunked = false;
+            response.StatusCode = (int)statusCode;
+            response.ContentLength64 = 0;
+            response.Close();
         }
 
         protected virtual void Dispose(bool disposing)
