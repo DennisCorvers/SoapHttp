@@ -26,6 +26,9 @@ namespace SoapHttp
                 m_listener.Prefixes.Add(prefix);
         }
 
+        ~Listener()
+            => Dispose(false);
+
         public void Start(CancellationToken token)
         {
             if (m_listener.IsListening)
@@ -56,7 +59,10 @@ namespace SoapHttp
 
                     try
                     {
-                        var response = await ParseRequest(context.Request);
+                        var soapMethod = ResolveSoapAction(context.Request.Headers);
+                        var response = await HandleRequest(context.Request, soapMethod);
+
+                        await RespondWithMessage(context.Response, response, soapMethod);
                     }
                     catch (Exception e)
                     {
@@ -78,18 +84,20 @@ namespace SoapHttp
             Console.WriteLine("Listener stopped listening.");
         }
 
-
-
-        private async Task<object?> ParseRequest(HttpListenerRequest request)
+        private WcfMethodInfo ResolveSoapAction(System.Collections.Specialized.NameValueCollection headers)
         {
-            // Validate request?
-            var targetMethod = request.Headers.Get("soapAction");
+            var targetMethod = headers.Get("soapAction");
             if (targetMethod == null)
                 throw new InvalidOperationException("Soap message does not contain a soapAction.");
 
             if (!m_wcfMethodResolver.TryResolve(targetMethod, out WcfMethodInfo? methodInfo))
                 throw new InvalidOperationException($"Could not resolve the SoapAction: {targetMethod}.");
 
+            return methodInfo;
+        }
+
+        private async Task<object?> HandleRequest(HttpListenerRequest request, WcfMethodInfo methodInfo)
+        {
             if (methodInfo.TryGetParameterType(out Type? type))
             {
                 // Invoke with deserialized object.
@@ -104,16 +112,12 @@ namespace SoapHttp
             }
         }
 
-        private static void RespondWithException(HttpListenerResponse response, Exception exception)
+        private static async Task RespondWithMessage(HttpListenerResponse response, object? responseMessage, WcfMethodInfo methodInfo)
         {
-            response.Headers.Clear();
-            response.SendChunked = false;
-            response.StatusCode = 400;
-            response.ContentLength64 = 0;
-            response.Close();
+
         }
 
-        private static void RespondWithObject(HttpListenerResponse response, object responseObject)
+        private static void RespondWithException(HttpListenerResponse response, Exception exception)
         {
 
         }
@@ -131,7 +135,7 @@ namespace SoapHttp
         {
             if (!m_isDisposed)
             {
-                if (disposing)
+                if (m_listener.IsListening)
                 {
                     m_listener.Stop();
                     m_listener.Close();
