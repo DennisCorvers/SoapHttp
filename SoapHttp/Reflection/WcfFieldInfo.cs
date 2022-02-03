@@ -15,7 +15,7 @@ namespace SoapHttp.Reflection
 
         public WcfFieldInfo(FieldInfo fieldInfo, System.ServiceModel.MessageBodyMemberAttribute memberAttribute)
         {
-            PropertyType = fieldInfo.GetType();
+            PropertyType = fieldInfo.FieldType;
             Order = memberAttribute.Order;
             XmlNamespace = memberAttribute.Namespace;
             XmlName = string.IsNullOrEmpty(memberAttribute.Name) ? fieldInfo.Name : memberAttribute.Name;

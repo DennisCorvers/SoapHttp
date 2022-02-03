@@ -6,11 +6,21 @@ namespace SoapHttp.Reflection
     internal class WcfMethodInfo
     {
         public bool HasParameters
-            => WcfRequestMessageInfo != null;
-        public bool IsAsync 
+        {
+            get
+            {
+                return WcfRequestMessageInfo != null && WcfRequestMessageInfo.Fields.Length > 0;
+            }
+        }
+        public bool IsAsync
         { get; }
         public bool HasReturnValue
-            => WcfResponseMessageInfo != null;
+        {
+            get
+            {
+                return WcfResponseMessageInfo != null && WcfResponseMessageInfo.Fields.Length > 0;
+            }
+        }
         public string SoapActionName
         { get; }
 
@@ -59,7 +69,8 @@ namespace SoapHttp.Reflection
                 return false;
             }
 
-            value = WcfRequestMessageInfo.ParameterType;
+            // TODO: Use all available types for deserializer...
+            value = WcfRequestMessageInfo.Fields[0].PropertyType;
             return true;
         }
 
@@ -68,7 +79,9 @@ namespace SoapHttp.Reflection
             if (WcfRequestMessageInfo == null)
                 throw new InvalidOperationException("SoapAction does not contain parameters.");
 
-            var requestObject = Activator.CreateInstance(WcfRequestMessageInfo.MessageType, soapObject);
+            // TODO: Creation of object only applies when IsWrapped = false
+            // Also add support for multiple objects in this case.
+            var requestObject = WcfRequestMessageInfo.Constructor(soapObject);
 
             if (!IsAsync)
             {
