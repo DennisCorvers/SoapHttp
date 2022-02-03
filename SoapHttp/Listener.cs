@@ -1,7 +1,6 @@
 ﻿using SoapHttp.Serialization;
+using SoapHttp.Reflection;
 using System.Net;
-using System.Reflection;
-using System.Xml;
 
 namespace SoapHttp
 {
@@ -10,7 +9,7 @@ namespace SoapHttp
         private readonly T m_service;
         private readonly HttpListener m_listener;
         private readonly ICollection<string> m_prefixes;
-        private readonly TypeResolver<T> m_typeResolver;
+        private readonly WcfMethodResolver<T> m_wcfMethodResolver;
         private bool m_isDisposed;
 
         public Listener(string prefix, T service)
@@ -20,7 +19,7 @@ namespace SoapHttp
         public Listener(ICollection<string> uriPrefixes, T service)
         {
             m_service = service;
-            m_typeResolver = new TypeResolver<T>();
+            m_wcfMethodResolver = new WcfMethodResolver<T>();
             m_listener = new HttpListener();
             m_prefixes = uriPrefixes;
             foreach (var prefix in uriPrefixes)
@@ -88,7 +87,7 @@ namespace SoapHttp
             if (targetMethod == null)
                 throw new InvalidOperationException("Soap message does not contain a soapAction.");
 
-            if (!m_typeResolver.TryResolveType(targetMethod, out WcfMethodInfo? methodInfo))
+            if (!m_wcfMethodResolver.TryResolve(targetMethod, out WcfMethodInfo? methodInfo))
                 throw new InvalidOperationException($"Could not resolve the SoapAction: {targetMethod}.");
 
             if (methodInfo.TryGetParameterType(out Type? type))
@@ -97,11 +96,11 @@ namespace SoapHttp
                 var obj = await SoapSerializer.Deserialize(request.InputStream, type)
                     ?? throw new InvalidOperationException("Could not deserialize Soap message.");
 
-                return methodInfo.InvokeSoapMethod(obj, m_service);
+                return await methodInfo.InvokeSoapMethodAsync(obj, m_service);
             }
             else
             {
-                return methodInfo.InvokeSoapMethod(m_service);
+                return await methodInfo.InvokeSoapMethodAsync(m_service);
             }
         }
 

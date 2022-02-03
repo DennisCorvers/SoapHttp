@@ -1,16 +1,16 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-namespace SoapHttp
+namespace SoapHttp.Reflection
 {
-    internal class TypeResolver<T> where T : class
+    internal class WcfMethodResolver<T> where T : class
     {
         public int ServiceMethodCount
             => m_wcfMethodInfo.Count;
 
-        private Dictionary<string, WcfMethodInfo> m_wcfMethodInfo;
+        private readonly Dictionary<string, WcfMethodInfo> m_wcfMethodInfo;
 
-        public TypeResolver()
+        public WcfMethodResolver()
         {
             if (!TryResolveServiceContract(typeof(T), out Type? serviceContractType))
                 throw new ArgumentException($"Type {typeof(T)} does not implement a valid service contract.");
@@ -51,7 +51,7 @@ namespace SoapHttp
             return false;
         }
 
-        public bool TryResolveType(string soapAction, [NotNullWhen(true)] out WcfMethodInfo? wcfMethodInfo)
+        public bool TryResolve(string soapAction, [NotNullWhen(true)] out WcfMethodInfo? wcfMethodInfo)
         {
             return m_wcfMethodInfo.TryGetValue(soapAction, out wcfMethodInfo);
         }
@@ -112,18 +112,35 @@ namespace SoapHttp
             return true;
         }
 
-        internal object? InvokeSoapMethod(object soapObject, object target)
+        internal async Task<object?> InvokeSoapMethodAsync(object soapObject, object target)
         {
             if (m_requestObjectType == null)
                 throw new InvalidOperationException("SoapAction does not contain parameters.");
 
             var requestObject = Activator.CreateInstance(m_requestObjectType, soapObject);
-            return m_methodInfo.Invoke(target, new[] { requestObject });
+
+            if (!IsAsync)
+            {
+                return m_methodInfo.Invoke(target, new[] { requestObject });
+            }
+            else
+            {
+                var task = m_methodInfo.Invoke(target, new[] { requestObject })!;
+                return await (Task<object?>)task;
+            }
         }
 
-        internal object? InvokeSoapMethod(object target)
+        internal async Task<object?> InvokeSoapMethodAsync(object target)
         {
-            return m_methodInfo.Invoke(target, null);
+            if (!IsAsync)
+            {
+                return m_methodInfo.Invoke(target, null);
+            }
+            else
+            {
+                var task = m_methodInfo.Invoke(target, null)!;
+                return await(Task<object?>)task;
+            }
         }
     }
 }

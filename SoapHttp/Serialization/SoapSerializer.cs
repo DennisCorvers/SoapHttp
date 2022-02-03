@@ -202,7 +202,12 @@ namespace SoapHttp.Serialization
             // Write body object
             if (bodyData != null)
             {
-                var xmlSerializer = new XmlSerializer(bodyData.GetType());
+                var root = new XmlRootAttribute()
+                {
+                    ElementName = "AssortimentSturingBericht",
+                    Namespace = "http://schemas.opg.nl"
+                };
+                var xmlSerializer = new XmlSerializer(bodyData.GetType(), root: null);
                 xmlSerializer.Serialize(writer, bodyData);
             }
         }
