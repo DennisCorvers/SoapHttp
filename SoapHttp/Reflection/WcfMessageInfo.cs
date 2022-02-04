@@ -7,8 +7,8 @@ namespace SoapHttp.Reflection
         internal bool IsWrapped { get; }
         internal Type MessageType { get; }
 
-        internal Utility.ExpressionCtor Constructor { get; }
-        internal WcfFieldInfo[] Fields;
+        internal Func<object> Constructor { get; }
+        internal WcfMemberInfo[] Fields;
 
         public WcfMessageInfo(Type messageType)
         {
@@ -25,37 +25,56 @@ namespace SoapHttp.Reflection
             if (!IsWrapped)
                 Fields = CollectFields(messageType);
             else
-                Fields = Array.Empty<WcfFieldInfo>();
+                Fields = Array.Empty<WcfMemberInfo>();
 
-            Constructor = MakeConstructor(messageType, Fields);
+            // Always assume the Type has an empty (default) constructor
+            Constructor = Utility.GetEmptyConstructor(messageType);
         }
 
-        private static Utility.ExpressionCtor MakeConstructor(Type messageType, WcfFieldInfo[] wcfFields)
+        public object ConstructMessage(object[] parameters)
         {
-            var contructorInfo = messageType.GetConstructor(wcfFields.Select(x => x.PropertyType).ToArray());
+            if (IsWrapped)
+                throw new InvalidOperationException("Only non-wrapped messages can be created.");
 
-            // Do we always have a constructor that accepts all members of the message?
-            if (contructorInfo == null)
-                throw new InvalidOperationException($"Constructor for type {messageType.Name} was not found with the following parameters {wcfFields}.");
+            if (parameters.Length > Fields.Length)
+                throw new InvalidOperationException("Too many parameters were supplied.");
 
-            return Utility.GetConstructor(contructorInfo);
+            var message = Constructor();
+            // Parameters NEEDS to be in the same order as WcfMemberInfo!
+            for (int i = 0; i < parameters.Length; i++)
+                Fields[i].SetValue(message, parameters[i]);
+
+            return message;
         }
 
-        private static WcfFieldInfo[] CollectFields(Type messageType)
+        private static WcfMemberInfo[] CollectFields(Type messageType)
         {
             var fields = messageType.GetFields();
+            var properties = messageType.GetProperties();
 
-            var xmlFields = new List<WcfFieldInfo>(fields.Length);
+            var xmlFields = new List<WcfMemberInfo>();
+
+            // Collect fields
             foreach (var field in fields)
             {
                 var bodyMemberAttribute = field.GetCustomAttribute<System.ServiceModel.MessageBodyMemberAttribute>();
                 if (bodyMemberAttribute == null)
                     continue;
 
-                xmlFields.Add(new WcfFieldInfo(field, bodyMemberAttribute));
+                xmlFields.Add(new WcfMemberInfo(field, bodyMemberAttribute));
             }
 
-            xmlFields.OrderBy(x => x.Order);
+            // Collect properties
+            foreach (var property in properties)
+            {
+                var bodyMemberAttribute = property.GetCustomAttribute<System.ServiceModel.MessageBodyMemberAttribute>();
+                if (bodyMemberAttribute == null)
+                    continue;
+
+                xmlFields.Add(new WcfMemberInfo(property, bodyMemberAttribute));
+            }
+
+            xmlFields.OrderBy(x => x.Order).ThenBy(x => x.XmlName);
             return xmlFields.ToArray();
         }
     }

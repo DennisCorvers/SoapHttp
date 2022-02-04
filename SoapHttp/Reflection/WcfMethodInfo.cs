@@ -74,22 +74,24 @@ namespace SoapHttp.Reflection
             return true;
         }
 
-        internal async Task<object?> InvokeSoapMethodAsync(object soapObject, object target)
+        internal async Task<object?> InvokeSoapMethodAsync(object requestMessage, object target)
         {
             if (WcfRequestMessageInfo == null)
                 throw new InvalidOperationException("SoapAction does not contain parameters.");
 
-            // TODO: Creation of object only applies when IsWrapped = false
-            // Also add support for multiple objects in this case.
-            var requestObject = WcfRequestMessageInfo.Constructor(soapObject);
-
             if (!IsAsync)
             {
-                return m_methodInfo.Invoke(target, new[] { requestObject });
+                return m_methodInfo.Invoke(target, new[] { requestMessage });
             }
             else
             {
-                var task = m_methodInfo.Invoke(target, new[] { requestObject })!;
+                var task = m_methodInfo.Invoke(target, new[] { requestMessage })!;
+
+                if (!HasReturnValue)
+                {
+                    await (Task)task;
+                    return null;
+                }
                 return await (Task<object?>)task;
             }
         }
@@ -103,6 +105,12 @@ namespace SoapHttp.Reflection
             else
             {
                 var task = m_methodInfo.Invoke(target, null)!;
+
+                if (!HasReturnValue)
+                {
+                    await (Task)task;
+                    return null;
+                }
                 return await (Task<object?>)task;
             }
         }

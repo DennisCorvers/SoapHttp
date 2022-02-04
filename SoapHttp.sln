@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Client", "Client\Client.csp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Procotol", "Procotol\Procotol.csproj", "{06C2A083-46E6-40D8-92CB-E969EEDA85C4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoapHttpTests", "SoapHttpTests\SoapHttpTests.csproj", "{73483825-1001-4331-AF5F-FFBAB8473278}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{06C2A083-46E6-40D8-92CB-E969EEDA85C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{06C2A083-46E6-40D8-92CB-E969EEDA85C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{06C2A083-46E6-40D8-92CB-E969EEDA85C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{73483825-1001-4331-AF5F-FFBAB8473278}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73483825-1001-4331-AF5F-FFBAB8473278}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73483825-1001-4331-AF5F-FFBAB8473278}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73483825-1001-4331-AF5F-FFBAB8473278}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
