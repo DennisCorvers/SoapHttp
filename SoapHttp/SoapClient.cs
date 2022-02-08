@@ -19,7 +19,7 @@ namespace SoapHttp
                 Console.WriteLine($"SOAP-action {soapAction} : Send complete, waiting for response");
 
                 var responseCode = response.StatusCode;
-
+                var responseText = response.Content.ReadAsStringAsync();
                 // Translate to xml?
 
                 Console.WriteLine($"SOAP - action {soapAction}: Response received.");

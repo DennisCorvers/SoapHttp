@@ -79,7 +79,8 @@ namespace SoapHttp
                         var soapMethod = ResolveSoapAction(context.Request, service);
                         var responseObject = await HandleRequest(context.Request.InputStream, soapMethod, service);
 
-                        await RespondWithMessage(context.Response, responseObject, soapMethod);
+                        if (soapMethod.HasReturnValue)
+                            await RespondWithMessage(context.Response, responseObject, soapMethod.WcfResponseMessageInfo!);
                     }
                     catch (Exception e)
                     {
@@ -141,12 +142,17 @@ namespace SoapHttp
             }
         }
 
-        private static async Task RespondWithMessage(HttpListenerResponse response, object? responseMessage, WcfMethodInfo methodInfo)
+        private static async Task RespondWithMessage(HttpListenerResponse response, object? responseMessage, WcfMessageInfo messageInfo)
         {
-            // TODO: Response
-            // Void response?
+            var serializer = new WcfSerializer();
 
-            // Null response?
+            if (responseMessage == null)
+                await serializer.Serialize(response.OutputStream, messageInfo);
+            else
+                await serializer.Serialize(response.OutputStream, responseMessage, messageInfo);
+
+            response.StatusCode = (int)HttpStatusCode.OK;
+            response.Close();
         }
 
         private static void RespondWithException(HttpListenerResponse response, Exception exception)

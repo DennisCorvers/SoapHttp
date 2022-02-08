@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Xml.Serialization;
 
 namespace SoapHttp.Reflection
@@ -11,6 +12,7 @@ namespace SoapHttp.Reflection
         internal Func<object> Constructor { get; }
         internal WcfMemberInfo[] Fields;
         internal string? Namespace { get; }
+        internal string Name { get; }
 
         public WcfMessageInfo(Type messageType)
         {
@@ -32,10 +34,11 @@ namespace SoapHttp.Reflection
             // Always assume the Type has an empty (default) constructor
             Constructor = Utility.GetEmptyConstructor(messageType);
 
-            Namespace = GetNameSpace(messageType);
+            Namespace = GetNamespace(messageType);
+            Name = GetName(messageType);
         }
 
-        private static string? GetNameSpace(Type messageType)
+        private static string? GetNamespace(Type messageType)
         {
             var rootAttribute = messageType.GetCustomAttribute<XmlRootAttribute>(true);
             if (rootAttribute != null)
@@ -43,6 +46,19 @@ namespace SoapHttp.Reflection
 
             var typeAttribute = messageType.GetCustomAttribute<XmlTypeAttribute>(true);
             return typeAttribute?.Namespace;
+        }
+
+        private static string GetName(Type messageType)
+        {
+            var rootAttribute = messageType.GetCustomAttribute<XmlRootAttribute>(true);
+            if (rootAttribute != null)
+                return rootAttribute.ElementName;
+
+            var typeAttribute = messageType.GetCustomAttribute<XmlTypeAttribute>(true);
+            if (typeAttribute != null)
+                return typeAttribute.TypeName;
+
+            return messageType.Name;
         }
 
         public object ConstructMessage(object[] parameters)

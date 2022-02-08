@@ -40,7 +40,7 @@ namespace SoapHttp.Serialization
             using XmlWriter writer = XmlWriter.Create(stream, xmlWriterSettings);
             await writer.WriteEnvelope(SoapNamespacePrefix);
             await writer.WriteHeader(SoapNamespacePrefix, null);
-            await writer.WriteBody(SoapNamespacePrefix, value);
+            //await writer.WriteBody(SoapNamespacePrefix, value);
 
             // Write closing element for the envelope.
             await writer.WriteEndElementAsync();
