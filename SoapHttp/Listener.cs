@@ -86,7 +86,7 @@ namespace SoapHttp
                     {
                         Console.WriteLine($"Error in handling request: {e}");
                         // Return fault.
-                        RespondWithException(context.Response, e);
+                        await RespondWithException(context.Response, e);
                         continue;
                     }
 
@@ -155,9 +155,22 @@ namespace SoapHttp
             response.Close();
         }
 
-        private static void RespondWithException(HttpListenerResponse response, Exception exception)
+        private static async Task RespondWithException(HttpListenerResponse response, Exception exception)
         {
+            var serializer = new WcfSerializer();
+            await serializer.SerializeException(response.OutputStream, exception);
 
+            response.StatusCode = (int)ResolveStatusCode(exception);
+            response.Close();
+        }
+
+        private static HttpStatusCode ResolveStatusCode(Exception exception)
+        {
+            return exception switch
+            {
+                NotImplementedException => HttpStatusCode.NotImplemented,
+                _ => HttpStatusCode.BadRequest
+            };
         }
 
         private static void RespondWithEmpty(HttpListenerResponse response, HttpStatusCode statusCode = HttpStatusCode.OK)

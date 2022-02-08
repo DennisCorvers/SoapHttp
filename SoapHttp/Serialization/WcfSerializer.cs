@@ -1,10 +1,6 @@
 ﻿using SoapHttp.Reflection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -38,7 +34,11 @@ namespace SoapHttp.Serialization
             using XmlWriter writer = XmlWriter.Create(stream, xmlWriterSettings);
             await using var envelope = await writer.WriteEnvelope(SoapNamespacePrefix);
             await writer.WriteHeader(SoapNamespacePrefix, null);
-            await writer.WriteBody(SoapNamespacePrefix, (writer) => SerializeBodyContent(writer, value, messageInfo));
+            await writer.WriteBody(SoapNamespacePrefix, (writer) =>
+            {
+                SerializeBodyContent(writer, value, messageInfo);
+                return Task.CompletedTask;
+            });
         }
 
         private static void SerializeBodyContent(XmlWriter writer, object? value, WcfMessageInfo messageInfo)
@@ -48,40 +48,40 @@ namespace SoapHttp.Serialization
 
             if (messageInfo.IsWrapped)
             {
-                WriteRootElement(writer, messageInfo.Name, messageInfo.Namespace, messageInfo.MessageType, value);
+                WriteBodyRootElement(writer, messageInfo.Name, messageInfo.Namespace, messageInfo.MessageType, value);
                 return;
             }
 
             foreach (var field in messageInfo.Fields)
             {
-                WriteRootElement(writer, field.XmlName, field.XmlNamespace, field.PropertyType, field.GetValue(value));
+                WriteBodyRootElement(writer, field.XmlName, field.XmlNamespace, field.PropertyType, field.GetValue(value));
+            }
+
+            static void WriteBodyRootElement(XmlWriter writer, string elementName, string? elementNamespace, Type dataType, object? bodyData)
+            {
+                var root = new XmlRootAttribute()
+                {
+                    ElementName = elementName,
+                    Namespace = elementNamespace
+                };
+                var xmlSerializer = new XmlSerializer(dataType, root);
+                xmlSerializer.Serialize(writer, bodyData);
             }
         }
 
-        private static void WriteRootElement(XmlWriter writer, string elementName, string? elementNamespace, Type dataType, object? bodyData)
-        {
-            var root = new XmlRootAttribute()
-            {
-                ElementName = elementName,
-                Namespace = elementNamespace
-            };
-            var xmlSerializer = new XmlSerializer(dataType, root);
-            xmlSerializer.Serialize(writer, bodyData);
-        }
-
-        public async Task SerializeException(Stream stream, Exception exception)
+        public Task SerializeException(Stream stream, Exception exception)
         {
             using XmlWriter writer = XmlWriter.Create(stream, xmlWriterSettings);
-            //await WriteDocumentTop(writer);
-
-            await writer.WriteStartElementAsync(SoapNamespacePrefix, "Fault", SoapNamespace);
-            await writer.WriteElementStringAsync(null, FaultCodeElementName, null, exception.GetType().ToString());
-            await writer.WriteElementStringAsync(null, FaultStringElementName, null, exception.Message);
-            await writer.WriteEndElementAsync();
-
-            await writer.WriteEndElementAsync();
-            await writer.WriteEndElementAsync();
+            return SerializeException(writer, exception);
         }
+
+        private async Task SerializeException(XmlWriter writer, Exception exception)
+        {
+            await using var envelope = await writer.WriteEnvelope(SoapNamespacePrefix);
+            await writer.WriteHeader(SoapNamespacePrefix, null);
+            await writer.WriteFault(SoapNamespacePrefix, exception);
+        }
+
         #endregion
 
         #region Deserialize

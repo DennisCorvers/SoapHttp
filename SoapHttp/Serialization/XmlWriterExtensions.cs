@@ -20,7 +20,7 @@ namespace SoapHttp.Serialization
             await writer.WriteEndElementAsync();
         }
 
-        internal static async Task WriteBody(this XmlWriter writer, string soapNamespacePrefix, Action<XmlWriter> bodyContentCallback)
+        internal static async Task WriteBody(this XmlWriter writer, string soapNamespacePrefix, Func<XmlWriter, Task> bodyContentCallback)
         {
             await writer.WriteStartElementAsync(soapNamespacePrefix, "Body", SoapNamespace);
             await writer.WriteAttributeStringAsync(
@@ -38,14 +38,22 @@ namespace SoapHttp.Serialization
                 );
 
             if (bodyContentCallback != null)
-                bodyContentCallback(writer);
+                await bodyContentCallback(writer);
 
             await writer.WriteEndElementAsync();
         }
 
-        internal static async Task WriteFault(this XmlWriter writer)
+        internal static Task WriteFault(this XmlWriter writer, string soapNamespacePrefix, Exception exception)
         {
+            return WriteBody(writer, soapNamespacePrefix, (writer) => WriteFaultAsync(writer, soapNamespacePrefix, exception));
 
+            static async Task WriteFaultAsync(XmlWriter writer, string soapNamespacePrefix, Exception exception)
+            {
+                await writer.WriteStartElementAsync(soapNamespacePrefix, "Fault", SoapNamespace);
+                await writer.WriteElementStringAsync(null, "faultcode", null, exception.GetType().ToString());
+                await writer.WriteElementStringAsync(null, "faultstring", null, exception.Message);
+                await writer.WriteEndElementAsync();
+            }
         }
 
         private static async Task<SelfClosingElement> WriteSelfClosingElementAsync(this XmlWriter writer, string? prefix, string localName, string? ns)
