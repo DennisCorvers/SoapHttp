@@ -14,7 +14,7 @@ namespace SoapHttp.Reflection
         public int Order
         { get; private set; }
 
-        private readonly Action<object, object> m_setter;
+        private readonly Action<object, object?> m_setter;
         private readonly Func<object, object?> m_getter;
 
         public WcfMemberInfo(FieldInfo fieldInfo, System.ServiceModel.MessageBodyMemberAttribute memberAttribute)
@@ -41,7 +41,7 @@ namespace SoapHttp.Reflection
             XmlName = string.IsNullOrEmpty(memberAttribute.Name) ? name : memberAttribute.Name;
         }
 
-        public void SetValue(object typeValue, object memberValue) 
+        public void SetValue(object typeValue, object? memberValue) 
             => m_setter(typeValue, memberValue);
 
         public object? GetValue(object typeValue) 

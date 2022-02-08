@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Xml.Serialization;
 
 namespace SoapHttp.Reflection
 {
@@ -9,6 +10,7 @@ namespace SoapHttp.Reflection
 
         internal Func<object> Constructor { get; }
         internal WcfMemberInfo[] Fields;
+        internal string? Namespace { get; }
 
         public WcfMessageInfo(Type messageType)
         {
@@ -29,6 +31,18 @@ namespace SoapHttp.Reflection
 
             // Always assume the Type has an empty (default) constructor
             Constructor = Utility.GetEmptyConstructor(messageType);
+
+            Namespace = GetNameSpace(messageType);
+        }
+
+        private static string? GetNameSpace(Type messageType)
+        {
+            var rootAttribute = messageType.GetCustomAttribute<XmlRootAttribute>(true);
+            if (rootAttribute != null)
+                return rootAttribute.Namespace;
+
+            var typeAttribute = messageType.GetCustomAttribute<XmlTypeAttribute>(true);
+            return typeAttribute?.Namespace;
         }
 
         public object ConstructMessage(object[] parameters)

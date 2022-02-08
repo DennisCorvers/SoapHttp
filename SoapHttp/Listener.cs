@@ -98,17 +98,13 @@ namespace SoapHttp
 
         private async Task<object?> HandleRequest(HttpListenerRequest request, WcfMethodInfo methodInfo)
         {
-            // TODO: Use WcfRequestMessageInfo for deserializer.
-            if (methodInfo.TryGetParameterType(out Type? type))
+            if (methodInfo.HasParameters)
             {
                 // Invoke with deserialized object.
-                var obj = await SoapSerializer.Deserialize(request.InputStream, type)
+                var obj = await WcfSerializer.Deserialize(request.InputStream, methodInfo.WcfRequestMessageInfo!)
                     ?? throw new InvalidOperationException("Could not deserialize Soap message.");
 
-                // TODO: Construct required type in Serializer
-                var requestMessage = methodInfo.WcfRequestMessageInfo.ConstructMessage(new[] { obj });
-
-                return await methodInfo.InvokeSoapMethodAsync(requestMessage, m_service);
+                return await methodInfo.InvokeSoapMethodAsync(obj, m_service);
             }
             else
             {

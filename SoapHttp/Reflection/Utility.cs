@@ -60,7 +60,7 @@ namespace SoapHttp.Reflection
             return (Func<object, object?>)getterMethod.CreateDelegate(typeof(Func<object, object?>));
         }
 
-        internal static Action<object, object> CreateAnonymousSetter(this FieldInfo field)
+        internal static Action<object, object?> CreateAnonymousSetter(this FieldInfo field)
         {
             string setterName = field.ReflectedType!.FullName + ".set_" + field.Name;
             DynamicMethod setterMethod = new DynamicMethod(setterName, null, new Type[] { typeof(object), typeof(object) }, true);
@@ -81,7 +81,7 @@ namespace SoapHttp.Reflection
                 gen.Emit(OpCodes.Stfld, field);
             }
             gen.Emit(OpCodes.Ret);
-            return (Action<object, object>)setterMethod.CreateDelegate(typeof(Action<object, object>));
+            return (Action<object, object?>)setterMethod.CreateDelegate(typeof(Action<object, object>));
         }
 
         public static Func<object, object?> CreateAnonymousGetter(this PropertyInfo propertyInfo)
@@ -98,7 +98,7 @@ namespace SoapHttp.Reflection
             return Expression.Lambda<Func<object, object>>(propertyGetterExpression, paramExpression).Compile();
         }
 
-        public static Action<object, object> CreateAnonymousSetter(this PropertyInfo propertyInfo)
+        public static Action<object, object?> CreateAnonymousSetter(this PropertyInfo propertyInfo)
         {
             var t = typeof(object);
             var propertyType = typeof(object);
@@ -109,7 +109,7 @@ namespace SoapHttp.Reflection
             Expression setVal = propertyInfo.PropertyType == propertyType ? paramExpression2 : Expression.Convert(paramExpression2, propertyInfo.PropertyType);
 
             MemberExpression propertySetterExpression = Expression.Property(setInst, propertyInfo);
-            return Expression.Lambda<Action<object, object>>(Expression.Assign(propertySetterExpression, setVal), paramExpression, paramExpression2).Compile();
+            return Expression.Lambda<Action<object, object?>>(Expression.Assign(propertySetterExpression, setVal), paramExpression, paramExpression2).Compile();
         }
     }
 }
