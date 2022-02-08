@@ -1,29 +1,40 @@
 ﻿using SoapHttp.Serialization;
 using SoapHttp.Reflection;
 using System.Net;
+using SoapHttp.Hosting;
+using System.Diagnostics.CodeAnalysis;
 
 namespace SoapHttp
 {
-    public class Listener<T> : IDisposable where T : class
+    public class Listener : IDisposable
     {
-        private readonly T m_service;
+        private readonly IReadOnlyDictionary<Uri, ServiceEndpoint> m_services;
         private readonly HttpListener m_listener;
-        private readonly ICollection<string> m_prefixes;
-        private readonly WcfMethodResolver<T> m_wcfMethodResolver;
         private bool m_isDisposed;
 
-        public Listener(string prefix, T service)
-            : this(new List<string>(1) { prefix }, service)
+        public Listener(ServiceConfig serviceConfig)
+            : this(new[] { serviceConfig })
         { }
 
-        public Listener(ICollection<string> uriPrefixes, T service)
+        public Listener(ICollection<ServiceConfig> serviceConfigs)
         {
-            m_service = service;
-            m_wcfMethodResolver = new WcfMethodResolver<T>();
+            var services = new Dictionary<Uri, ServiceEndpoint>();
             m_listener = new HttpListener();
-            m_prefixes = uriPrefixes;
-            foreach (var prefix in uriPrefixes)
-                m_listener.Prefixes.Add(prefix);
+
+            foreach (var serviceConfig in serviceConfigs)
+            {
+                var prefix = serviceConfig.UriPrefix;
+                if (services.ContainsKey(prefix))
+                    throw new ArgumentException($"Service with prefix of {prefix} already exists.");
+
+                var resolver = new WcfMethodResolver(serviceConfig.Service.GetType());
+                services.Add(prefix, new ServiceEndpoint(prefix, serviceConfig.Service, resolver));
+
+                var listenerPrefix = prefix.GetLeftPart(UriPartial.Authority) + '/';
+                m_listener.Prefixes.Add(listenerPrefix);
+            }
+
+            m_services = services;
         }
 
         ~Listener()
@@ -35,7 +46,7 @@ namespace SoapHttp
                 throw new InvalidOperationException();
 
             if (m_isDisposed)
-                throw new ObjectDisposedException(nameof(Listener<T>));
+                throw new ObjectDisposedException(nameof(Listener));
 
             m_listener.Start();
             Task.Factory.StartNew(async () => await DoWork(token), token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -47,8 +58,8 @@ namespace SoapHttp
         private async Task DoWork(CancellationToken token)
         {
             Console.WriteLine("Listener listening on the following prefixes:");
-            foreach (var prefix in m_prefixes)
-                Console.WriteLine(prefix);
+            foreach (var service in m_services.Values)
+                Console.WriteLine(service.Prefix);
 
             try
             {
@@ -59,10 +70,16 @@ namespace SoapHttp
 
                     try
                     {
-                        var soapMethod = ResolveSoapAction(context.Request.Headers);
-                        var response = await HandleRequest(context.Request, soapMethod);
+                        if (!TryResolveServiceEndpoint(context, out ServiceEndpoint? service))
+                        {
+                            RespondWithEmpty(context.Response, HttpStatusCode.BadRequest);
+                            continue;
+                        }
 
-                        await RespondWithMessage(context.Response, response, soapMethod);
+                        var soapMethod = ResolveSoapAction(context.Request, service);
+                        var responseObject = await HandleRequest(context.Request.InputStream, soapMethod, service);
+
+                        await RespondWithMessage(context.Response, responseObject, soapMethod);
                     }
                     catch (Exception e)
                     {
@@ -84,31 +101,43 @@ namespace SoapHttp
             Console.WriteLine("Listener stopped listening.");
         }
 
-        private WcfMethodInfo ResolveSoapAction(System.Collections.Specialized.NameValueCollection headers)
+        private bool TryResolveServiceEndpoint(HttpListenerContext context, [NotNullWhen(true)] out ServiceEndpoint? serviceEndpoint)
         {
-            var targetMethod = headers.Get("soapAction");
+            var url = context.Request.Url;
+            if (url == null)
+            {
+                serviceEndpoint = null;
+                return false;
+            }
+
+            return m_services.TryGetValue(url, out serviceEndpoint);
+        }
+
+        private static WcfMethodInfo ResolveSoapAction(HttpListenerRequest request, ServiceEndpoint serviceEndpoint)
+        {
+            var targetMethod = request.Headers.Get("soapAction");
             if (targetMethod == null)
                 throw new InvalidOperationException("Soap message does not contain a soapAction.");
 
-            if (!m_wcfMethodResolver.TryResolve(targetMethod, out WcfMethodInfo? methodInfo))
+            if (!serviceEndpoint.ServiceResolver.TryResolve(targetMethod, out WcfMethodInfo? methodInfo))
                 throw new InvalidOperationException($"Could not resolve the SoapAction: {targetMethod}.");
 
             return methodInfo;
         }
 
-        private async Task<object?> HandleRequest(HttpListenerRequest request, WcfMethodInfo methodInfo)
+        private static async Task<object?> HandleRequest(Stream inputStream, WcfMethodInfo methodInfo, ServiceEndpoint serviceEndpoint)
         {
             if (methodInfo.HasParameters)
             {
                 // Invoke with deserialized object.
-                var obj = await WcfSerializer.Deserialize(request.InputStream, methodInfo.WcfRequestMessageInfo!)
+                var obj = await WcfSerializer.Deserialize(inputStream, methodInfo.WcfRequestMessageInfo!)
                     ?? throw new InvalidOperationException("Could not deserialize Soap message.");
 
-                return await methodInfo.InvokeSoapMethodAsync(obj, m_service);
+                return await methodInfo.InvokeSoapMethodAsync(obj, serviceEndpoint.Service);
             }
             else
             {
-                return await methodInfo.InvokeSoapMethodAsync(m_service);
+                return await methodInfo.InvokeSoapMethodAsync(serviceEndpoint.Service);
             }
         }
 

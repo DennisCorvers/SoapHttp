@@ -3,17 +3,17 @@ using System.Reflection;
 
 namespace SoapHttp.Reflection
 {
-    internal class WcfMethodResolver<T> where T : class
+    internal class WcfMethodResolver
     {
         public int ServiceMethodCount
             => m_wcfMethodInfo.Count;
 
         private readonly Dictionary<string, WcfMethodInfo> m_wcfMethodInfo;
 
-        public WcfMethodResolver()
+        public WcfMethodResolver(Type serviceType)
         {
-            if (!TryResolveServiceContract(typeof(T), out Type? serviceContractType))
-                throw new ArgumentException($"Type {typeof(T)} does not implement a valid service contract.");
+            if (!TryResolveServiceContract(serviceType, out Type? serviceContractType))
+                throw new ArgumentException($"Type {serviceType} does not implement a valid service contract.");
 
             m_wcfMethodInfo = new();
             foreach (var method in serviceContractType.GetMethods())
