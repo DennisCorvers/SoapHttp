@@ -3,6 +3,7 @@ using SoapHttp.Reflection;
 using System.Net;
 using SoapHttp.Hosting;
 using System.Diagnostics.CodeAnalysis;
+using SoapHttp.Extensions;
 
 namespace SoapHttp
 {
@@ -66,29 +67,35 @@ namespace SoapHttp
                 while (m_listener.IsListening)
                 {
                     var context = await m_listener.GetContextAsync();
-                    // Handle request
+                    var httpRequest = context.Request;
+                    var httpResponse = context.Response;
 
                     try
                     {
                         if (!TryResolveServiceEndpoint(context, out ServiceEndpoint? service))
                         {
-                            RespondWithEmpty(context.Response, HttpStatusCode.BadRequest);
+                            httpResponse.RespondWithEmpty(HttpStatusCode.BadRequest);
                             continue;
                         }
 
                         var soapMethod = ResolveSoapAction(context.Request, service);
-                        var responseObject = await HandleRequest(context.Request.InputStream, soapMethod, service);
+                        var response = await HandleRequest(context.Request.InputStream, soapMethod, service);
 
+                        // Respond
                         if (soapMethod.HasReturnValue)
-                            await RespondWithMessage(context.Response, responseObject, soapMethod.WcfResponseMessageInfo!);
+                            await httpResponse.RespondWithWcfMessage(response, soapMethod.WcfResponseMessageInfo!);
+                        else
+                            httpResponse.RespondWithEmpty();
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine($"Error in handling request: {e}");
+                        Console.WriteLine($"Error in handling request: {context.Request.Url} with error: {e}");
+
                         // Return fault.
-                        await RespondWithException(context.Response, e);
+                        await httpResponse.RespondWithException(e);
                         continue;
                     }
+
                 }
             }
             catch (HttpListenerException)
@@ -137,46 +144,6 @@ namespace SoapHttp
             {
                 return await methodInfo.InvokeSoapMethodAsync(serviceEndpoint.Service);
             }
-        }
-
-        private static async Task RespondWithMessage(HttpListenerResponse response, object? responseMessage, WcfMessageInfo messageInfo)
-        {
-            var serializer = new WcfSerializer();
-
-            if (responseMessage == null)
-                await serializer.Serialize(response.OutputStream, messageInfo);
-            else
-                await serializer.Serialize(response.OutputStream, responseMessage, messageInfo);
-
-            response.StatusCode = (int)HttpStatusCode.OK;
-            response.Close();
-        }
-
-        private static async Task RespondWithException(HttpListenerResponse response, Exception exception)
-        {
-            var serializer = new WcfSerializer();
-            await serializer.SerializeException(response.OutputStream, exception);
-
-            response.StatusCode = (int)ResolveStatusCode(exception);
-            response.Close();
-        }
-
-        private static HttpStatusCode ResolveStatusCode(Exception exception)
-        {
-            return exception switch
-            {
-                NotImplementedException => HttpStatusCode.NotImplemented,
-                _ => HttpStatusCode.BadRequest
-            };
-        }
-
-        private static void RespondWithEmpty(HttpListenerResponse response, HttpStatusCode statusCode = HttpStatusCode.OK)
-        {
-            response.Headers.Clear();
-            response.SendChunked = false;
-            response.StatusCode = (int)statusCode;
-            response.ContentLength64 = 0;
-            response.Close();
         }
 
         protected virtual void Dispose(bool disposing)
