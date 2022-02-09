@@ -89,9 +89,6 @@ namespace SoapHttp
                         await RespondWithException(context.Response, e);
                         continue;
                     }
-
-                    // Respond
-                    RespondWithEmpty(context.Response);
                 }
             }
             catch (HttpListenerException)
